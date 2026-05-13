@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  displayName  String   @map("display_name")
+  bio          String?
+  avatarUrl    String?  @map("avatar_url")
+  bannerUrl    String?  @map("banner_url")
+  location     String?
+  website      String?
+  verified     Boolean  @default(false)
+  passwordHash String   @map("password_hash")
+  isPrivate    Boolean  @default(false) @map("is_private")
+
+  notifyLikes    Boolean @default(true) @map("notify_likes")
+  notifyReplies  Boolean @default(true) @map("notify_replies")
+  notifyFollows  Boolean @default(true) @map("notify_follows")
+  notifyMentions Boolean @default(true) @map("notify_mentions")
+  notifyReposts  Boolean @default(true) @map("notify_reposts")
+
+  followersCount Int @default(0) @map("followers_count")
+  followingCount Int @default(0) @map("following_count")
+  postsCount     Int @default(0) @map("posts_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  posts               Post[]               @relation("UserPosts")
+  likes               Like[]
+  reposts             Repost[]
+  bookmarks           Bookmark[]
+  following           Follow[]             @relation("Follower")
+  followers           Follow[]             @relation("Following")
+  notifications       Notification[]       @relation("NotificationRecipient")
+  actorNotifications  Notification[]       @relation("NotificationActor")
+  sentMessages        Message[]
+  conversationMembers ConversationMember[]
+  sentConvRequests    Conversation[]       @relation("ConversationRequests")
+  messageReactions    MessageReaction[]
+  messageDeletions    MessageDeletion[]
+  blocksGiven         Block[]             @relation("BlockerBlocks")
+  blocksReceived      Block[]             @relation("BlockedBy")
+  ownedLists          List[]               @relation("ListOwner")
+  listMemberships     ListMember[]
+  pollVotes           PollVote[]
+  sessions            Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("sessions")
+}
+
+model Post {
+  id     String @id @default(cuid())
+  userId String @map("user_id")
+
+  content    String?
+  mediaUrls  String[] @map("media_urls")
+  mediaTypes String[] @map("media_types")
+
+  replyToId  String? @map("reply_to_id")
+  repostOfId String? @map("repost_of_id")
+  quoteOfId  String? @map("quote_of_id")
+
+  likesCount   Int @default(0) @map("likes_count")
+  repostsCount Int @default(0) @map("reposts_count")
+  repliesCount Int @default(0) @map("replies_count")
+  viewsCount   Int @default(0) @map("views_count")
+  quotesCount  Int @default(0) @map("quotes_count")
+
+  scheduledAt DateTime? @map("scheduled_at")
+  publishedAt DateTime? @map("published_at")
+  isPinned    Boolean   @default(false) @map("is_pinned")
+  isDeleted   Boolean   @default(false) @map("is_deleted")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User  @relation("UserPosts", fields: [userId], references: [id], onDelete: Cascade)
+  replyTo  Post? @relation("Replies", fields: [replyToId], references: [id])
+  replies  Post[] @relation("Replies")
+  repostOf Post? @relation("Reposts", fields: [repostOfId], references: [id])
+  reposts  Post[] @relation("Reposts")
+  quoteOf  Post? @relation("Quotes", fields: [quoteOfId], references: [id])
+  quotes   Post[] @relation("Quotes")
+
+  likes         Like[]
+  repostedBy    Repost[]
+  bookmarks     Bookmark[]
+  hashtags      PostHashtag[]
+  notifications Notification[]
+  poll          Poll?
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@index([replyToId])
+  @@map("posts")
+}
+
+model Like {
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("likes")
+}
+
+model Repost {
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("reposts")
+}
+
+model Bookmark {
+  userId    String   @map("user_id")
+  postId    String   @map("post_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("bookmarks")
+}
+
+model Follow {
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Hashtag {
+  id         String @id @default(cuid())
+  tag        String @unique
+  postsCount Int    @default(0) @map("posts_count")
+
+  posts PostHashtag[]
+
+  @@map("hashtags")
+}
+
+model PostHashtag {
+  postId    String @map("post_id")
+  hashtagId String @map("hashtag_id")
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, hashtagId])
+  @@map("post_hashtags")
+}
+
+enum NotificationType {
+  LIKE
+  REPLY
+  REPOST
+  FOLLOW
+  MENTION
+  QUOTE
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String           @map("user_id")
+  actorId String           @map("actor_id")
+  type    NotificationType
+  postId  String?          @map("post_id")
+  isRead  Boolean          @default(false) @map("is_read")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User  @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post  Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  isGroup     Boolean  @default(false) @map("is_group")
+  name        String?
+  avatarUrl   String?  @map("avatar_url")
+  isRequest   Boolean  @default(false) @map("is_request")
+  requesterId String?  @map("requester_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  requester User?                @relation("ConversationRequests", fields: [requesterId], references: [id], onDelete: SetNull)
+  members   ConversationMember[]
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+model ConversationMember {
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+  lastReadAt     DateTime? @map("last_read_at")
+  clearedAt      DateTime? @map("cleared_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  content        String?
+  mediaUrls      String[] @map("media_urls")
+  replyToId      String?  @map("reply_to_id")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]         @relation("MessageReplies")
+  reactions    MessageReaction[]
+  deletions    MessageDeletion[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_reactions")
+}
+
+model MessageDeletion {
+  messageId String @map("message_id")
+  userId    String @map("user_id")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId])
+  @@map("message_deletions")
+}
+
+model Block {
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker User @relation("BlockerBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model List {
+  id          String   @id @default(cuid())
+  ownerId     String   @map("owner_id")
+  name        String
+  description String?
+  isPrivate   Boolean  @default(false) @map("is_private")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  owner   User         @relation("ListOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members ListMember[]
+
+  @@map("lists")
+}
+
+model ListMember {
+  listId  String   @map("list_id")
+  userId  String   @map("user_id")
+  addedAt DateTime @default(now()) @map("added_at")
+
+  list List @relation(fields: [listId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([listId, userId])
+  @@map("list_members")
+}
+
+model Poll {
+  id        String   @id @default(cuid())
+  postId    String   @unique @map("post_id")
+  expiresAt DateTime @map("expires_at")
+
+  post    Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  options PollOption[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id         String @id @default(cuid())
+  pollId     String @map("poll_id")
+  text       String
+  votesCount Int    @default(0) @map("votes_count")
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@map("poll_options")
+}
+
+model PollVote {
+  userId   String @map("user_id")
+  pollId   String @map("poll_id")
+  optionId String @map("option_id")
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, pollId])
+  @@map("poll_votes")
+}
